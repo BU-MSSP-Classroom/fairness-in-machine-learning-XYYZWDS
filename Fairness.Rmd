@@ -274,6 +274,7 @@ https://www.hindawi.com/journals/bmri/2014/781670/
 We grabbed the preprocessed data so you don't need to clean it.
 ```{r}
 diabetic <- fread("diabetic_preprocessed.csv")
+
 ```
 
 The target is `readmit_30_days`, which is a binary attribute that indicates whether the patient was readmitted within 30 days.
@@ -322,25 +323,84 @@ Do you see any problem with this model with protected attributes such as race an
 
 Choose one of the data described above as your target problem.
 
+
+
+
+
+
+```{r}
+data<-diabetic
+head(data)
+```
+
 ~~~
-Please write your answer in full sentences.
 
-
-~~~
-
-Discuss what a favorable label in this problem is and what does a favorable label grant the affected user?
-Is it assertive or non-punitive?
-
-~~~
-Please write your answer in full sentences.
+ However, commonly in healthcare analytics, especially with diabetic patients, a favorable label might indicate no readmission (readmitted = NO) or not being readmitted within 30 days (readmit_30_days = 0). 
 
 
 ~~~
 
 What type of justice is this issue about?
 
+
+
+
+
+```{r}
+# Summary of the dataset
+summary(data)
+
+# Examine the structure of the dataset
+str(data)
+
+# Count of readmission within 30 days
+table(data$readmit_30_days)
+
+# Plot the distribution of age for readmitted vs. non-readmitted patients
+ggplot(data, aes(x=age, fill=factor(readmit_30_days))) + 
+  geom_bar(position="fill") + 
+  labs(fill="Readmitted within 30 days", x="Age Category", y="Proportion")
+
+
+
+
+```
+
+```{r}
+# Logistic regression model
+model <- glm(readmit_30_days ~ age + time_in_hospital + num_lab_procedures + num_medications + change + diabetesMed, data=data, family="binomial")
+
+# Summary of the model to see coefficients and statistical significance
+summary(model)
+
+# Predicting readmission (as probabilities)
+predictions <- predict(model, data, type="response")
+data$predicted_probability <- predictions
+
+# You could create a classification based on a threshold, e.g., 0.5
+data$predicted_readmission <- ifelse(data$predicted_probability > 0.5, 1, 0)
+
+# Checking the accuracy
+table(Predicted = data$predicted_readmission, Actual = data$readmit_30_days)
+
+
+
+
+
+```
+
+
+
+
+
+
+
 ~~~
-Please write your answer in full sentences.
+Distributive Justice
+As previously mentioned, distributive justice is concerned with the equitable allocation of resources and services. In healthcare, this translates into ensuring all patients have fair access to the care and interventions necessary to prevent adverse outcomes, like hospital readmission.
+
+Procedural Justice
+Procedural justice refers to the fairness of the processes and methods used to make decisions. In the context of predictive modeling for hospital readmissions, procedural justice would involve the fairness and transparency of the algorithms and data analysis methods used to predict readmission risk. 
 
 
 ~~~
@@ -348,7 +408,7 @@ Please write your answer in full sentences.
 Discuss the potential concerns about the data being used. 
 
 ~~~
-Please write your answer in full sentences.
+1. Data Quality and Completeness  2. Bias and Fairness  3. Privacy and Security  4. Ethical Use and Interpretation   5. Regulatory Compliance
 
 
 ~~~
@@ -356,16 +416,68 @@ Please write your answer in full sentences.
 Discuss what type of group fairness metrics is appropriate for this problem.
 
 ~~~
-Please write your answer in full sentences.
+Concerns About the Data Being Used
 
+1.Bias in Data Collection  2.Historical Bias  3.Measurement Bias  4.Label Bias
+
+Appropriate Group Fairness Metrics
+
+1.Demographic Parity (Independence)  2.Equality of Opportunity (Conditional Procedure Accuracy Equality)
+
+3.Predictive Equality  4.Calibration
 
 ~~~
 
 Using the appropriate fairness metrics, show if there are concerns in the prediction algorithm.
 
 ```{r}
-#
-#
+library(dplyr)
+
+
+
+library(readr) # For reading CSV files
+library(dplyr) # For data manipulation
+library(caret) # For logistic regression modeling and data partitioning
+df<- diabetic
+# Assuming 'df' is your dataframe
+# Convert categorical variables to factors if not already
+df$race <- as.factor(df$race)
+df$readmit_30_days <- as.factor(df$readmit_30_days)
+
+# Split data into training and testing sets
+set.seed(123) # For reproducibility
+indexes <- createDataPartition(df$readmit_30_days, p=0.8, list=FALSE)
+train_data <- df[indexes,]
+test_data <- df[-indexes,]
+
+# Model training
+# For simplicity, using a logistic regression model
+model <- glm(readmit_30_days ~ time_in_hospital + num_lab_procedures + num_medications, 
+             family = binomial(), data = train_data)
+
+# Prediction on test set
+predictions <- predict(model, test_data, type="response")
+predicted_classes <- ifelse(predictions > 0.5, "1", "0")
+
+# Add predictions to the test dataset
+test_data$predicted <- predicted_classes
+
+# Function to calculate fairness metrics
+calculate_fairness_metrics <- function(df, sensitive_attr_col, actual_col, predicted_col) {
+  df %>%
+    group_by(!!sym(sensitive_attr_col)) %>%
+    summarise(
+      TPR = sum({{actual_col}} == "1" & {{predicted_col}} == "1") / sum({{actual_col}} == "1"),
+      FPR = sum({{actual_col}} == "0" & {{predicted_col}} == "1") / sum({{actual_col}} == "0"),
+      Count = n(),
+      .groups = 'drop'
+    )
+}
+
+# Calculate and print fairness metrics based on 'race'
+fairness_metrics <- calculate_fairness_metrics(test_data, 'race', actual = readmit_30_days, predicted = predicted)
+print(fairness_metrics)
+
 ```
 
 ~~~
@@ -377,8 +489,7 @@ Please write your answer in full sentences.
 Given that you have access to the original data, but not to the model used to make the prediction, discuss which mitigation strategy might be more appropriate to deal with the problem, if any.
 
 ```{r}
-#
-#
+
 ```
 
 ~~~
